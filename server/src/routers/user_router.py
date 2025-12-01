@@ -1,16 +1,15 @@
-from pydantic import BaseModel, Field
-from fastapi import APIRouter
+from typing import Annotated
+from fastapi import APIRouter, Request, Depends
+
+from src.services.user_service import UserService
+from src.utils.security import verify_access_token
 
 router = APIRouter(
     prefix="/users",
-    tags=["users"]
+    tags=["users"],
+    dependencies=[Depends(verify_access_token)]
 )
 
-class UserCreate(BaseModel):
-    username: str
-    password: str
-
-
-@router.post("register", status_code=201)
-async def register_user(user: UserCreate): 
-    return ""
+@router.get("/friends", status_code=200)
+async def get_friends(request: Request, user_service: UserService = Depends()):
+    return user_service.get_friends(request.state.user_id)
