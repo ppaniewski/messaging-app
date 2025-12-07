@@ -1,7 +1,7 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, Response, Header, Cookie
 
-from server.src.services.auth_service import AuthService
+from src.services.auth_service import AuthService
 from src.schemas.user_schemas import UserIn, UserOut, UserOutLogin
 
 router = APIRouter(
