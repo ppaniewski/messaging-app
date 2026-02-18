@@ -8,7 +8,7 @@ from src.models.user import User
 from src.schemas.user_schemas import UserIn
 
 class UserRepository:
-    def __init__(self, db: Session = Depends(get_db)):
+    def __init__(self, db: Session):
         self.db = db
 
     def commit(self):
@@ -18,25 +18,25 @@ class UserRepository:
         return self.db.get(User, user_id)
 
     def get_by_username(self, username: str) -> User | None:
-        return self.db.query(User).where(User.username == username).scalar()    
+        return self.db.query(User).where(User.username == username).first()
     
-    def list(self) -> List[User]:
-        return self.db.query(User).all()
+    def list(self, offset: int, limit: int | None = None) -> List[User]: 
+        if limit != None:
+            return self.db.query(User).order_by(User.username.asc()).limit(limit).offset(offset).all()
+        
+        return self.db.query(User).order_by(User.username.asc()).offset(offset).all()
+    
+    def list_matching_users(self, letters: str, offset: int, limit: int | None = None) -> List[User]:
+        if limit != None:
+            return (self.db.query(User).where(User.username.startswith(letters)).
+                    order_by(User.username.asc()).limit(limit).offset(offset).all())
+        
+        return (self.db.query(User).where(User.username.startswith(letters)).
+                order_by(User.username.asc()).offset(offset).all())
 
     def create(self, user: UserIn) -> User:
         new_user = User(username=user.username, password=user.password)
         self.db.add(new_user)
-        self.db.commit()
+        self.db.flush()
+        
         return new_user
-    
-    def add_friend_request(self, user: User, friend: User):
-        user.friend_requests_sent.append(friend)
-
-    def remove_friend_request(self, user: User, friend: User):
-        user.friend_requests_received.remove(friend)
-
-    def add_friend(self, user: User, friend: User):
-        user.friends.append(friend)
-
-    def remove_friend(self, user: User, friend: User):
-        user.friends.remove(friend)

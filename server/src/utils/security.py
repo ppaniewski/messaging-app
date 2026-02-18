@@ -5,9 +5,10 @@ import hashlib
 from typing import Annotated
 
 import jwt
-from fastapi import Header, HTTPException, Request
+from fastapi import Header, Request
 
 from src.repositories.session_repository import SessionRepository
+from src.exceptions.exceptions import BadRequestException, NotFoundException, ServerErrorException, UnauthorizedException
 
 REFRESH_TOKEN_EXPIRATION_DAYS = 30
 ACCESS_TOKEN_EXPIRATION_MINS = 15
@@ -27,10 +28,12 @@ def create_access_token(user_id: int) -> str:
 
     return jwt.encode(payload, secret, algorithm="HS256")
 
-def verify_access_token(access_token: Annotated[str, Header()], request: Request):
+def verify_access_dependency(authorization: Annotated[str, Header()], request: Request):
+    access_token = authorization.split(" ")[1]
+
     secret = os.getenv("JWT_SECRET")
     if not isinstance(secret, str):
-        raise KeyError()
+        raise ServerErrorException("Could not load JWT secret")
 
     try: 
         decoded = jwt.decode(
@@ -38,45 +41,78 @@ def verify_access_token(access_token: Annotated[str, Header()], request: Request
             options={"require": ["exp", "iat"], "verify_exp": "verify_signature"}
         )
     except Exception:
-        raise HTTPException(status_code=401, detail="Invalid access token")
+        raise UnauthorizedException("Invalid access token")
     
     request.state.user_id = decoded["user_id"]
 
-def issue_new_refresh_token(user_id: int, user_agent: str | None) -> str:
-    session_repository = SessionRepository()
+def verify_access_token(access_token: str) -> int:
+    secret = os.getenv("JWT_SECRET")
+    if not isinstance(secret, str):
+        raise ServerErrorException("Could not load JWT secret")
+    
+    try: 
+        decoded = jwt.decode(
+            access_token, secret, algorithms=["HS256"], 
+            options={"require": ["exp", "iat"], "verify_exp": "verify_signature"}
+        )
+    except Exception:
+        raise UnauthorizedException("Invalid access token")
+    
+    return decoded["user_id"]
+    
 
+def issue_new_refresh_token(user_id: int, user_agent: str | None, session_repo: SessionRepository) -> str:
     token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(token.encode()).hexdigest()
     expiration_date = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRATION_DAYS)
 
-    session_repository.create(token_hash, user_id, user_agent, expiration_date)
+    session_repo.create(token_hash, user_id, user_agent, expiration_date)
+    session_repo.commit()
 
     return token
 
-def rotate_refresh_tokens(refresh_token: str):
-    session_repository = SessionRepository()
-
+def terminate_refresh_token(refresh_token: str, session_repo: SessionRepository):
     token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
-    previous_session = session_repository.get(token_hash)
+    current_session = session_repo.get(token_hash)
+
+    if not current_session:
+        raise NotFoundException("No refresh token matching")
+    if current_session.revoked_at != None:
+        raise BadRequestException("Refresh token already revoked")
+    if current_session.expires_at < datetime.now(timezone.utc):
+        raise BadRequestException("Expired refresh token")
+
+    current_time = datetime.now(timezone.utc)
+    current_session.last_used_at = current_time
+    current_session.revoked_at = current_time
+
+    session_repo.commit()
+
+def rotate_refresh_tokens(refresh_token: str, session_repo: SessionRepository):
+    token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
+    previous_session = session_repo.get(token_hash)
 
     if not previous_session:
-        raise Exception("No token matching")
+        raise NotFoundException("No refresh token matching")
     if previous_session.revoked_at != None:
-        raise Exception("Refresh token already revoked")
+        raise BadRequestException("Refresh token already revoked")
     if previous_session.expires_at < datetime.now(timezone.utc):
-        raise Exception("Expired refresh token")
+        raise BadRequestException("Expired refresh token")
     
     # Expire current session 
     current_time = datetime.now(timezone.utc)
-    session_repository.update(previous_session.id, current_time, current_time)
+    previous_session.last_used_at = current_time
+    previous_session.revoked_at = current_time
     
     new_token = secrets.token_urlsafe(32)
     new_token_hash = hashlib.sha256(new_token.encode()).hexdigest()
     
-    session_repository.create(
+    session_repo.create(
         new_token_hash, previous_session.user_id, previous_session.user_agent, 
         previous_session.expires_at, previous_session.id
     )
+
+    session_repo.commit()
 
     return {
         "new_token": new_token,

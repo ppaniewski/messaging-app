@@ -7,23 +7,14 @@ from src.config.database import get_db
 from src.models.session import Session
 
 class SessionRepository:
-    def __init__(self, db: DbSession = Depends(get_db)):
+    def __init__(self, db: DbSession):
         self.db = db
 
-    def get(self, token_hash: str) -> Session | None:
-        self.db.query(Session).where(Session.refresh_token_hash == token_hash).scalar()
-
-    def update(self, session_id: int, last_used_at: datetime | None = None, revoked_at: datetime | None = None):
-        session = self.db.get(Session, session_id)
-        if (session == None):
-            raise Exception("No session found by this id")
-
-        if last_used_at:
-            session.last_used_at = last_used_at
-        if revoked_at:
-            session.revoked_at = revoked_at
-
+    def commit(self):
         self.db.commit()
+
+    def get(self, token_hash: str) -> Session | None:
+        return self.db.query(Session).where(Session.refresh_token_hash == token_hash).first()
 
     def create(
         self, token_hash: str, user_id: int, user_agent: str | None, 
@@ -41,4 +32,3 @@ class SessionRepository:
         )
 
         self.db.add(new_session)
-        self.db.commit()

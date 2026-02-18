@@ -1,6 +1,5 @@
 from typing import List, TYPE_CHECKING
 
-from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -18,7 +17,11 @@ class User(Base):
     username: Mapped[str] = mapped_column(unique=True, nullable=False, index=True)
     password: Mapped[str] = mapped_column(nullable=False)
 
-    user_conversations: Mapped[List["UserConversation"]] = relationship("UserConversation", back_populates="user")
+    user_conversations: Mapped[List["UserConversation"]] = relationship(
+        "UserConversation", 
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
     conversations: Mapped[List["Conversation"]] = relationship(
         "Conversation", secondary="user_conversations", 
         back_populates="users", viewonly=True

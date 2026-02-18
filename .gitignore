@@ -1,4 +1,12 @@
-.vscode
+.vscode*
+logs
+*.log
+
 .env
 venv
 __pycache__
+
+node_modules
+dist
+dist-ssr
+*.local

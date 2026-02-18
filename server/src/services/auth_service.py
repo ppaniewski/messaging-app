@@ -1,41 +1,48 @@
-from fastapi import Depends, HTTPException, Response
+from fastapi import Depends, Response
 from argon2 import PasswordHasher, exceptions
+from sqlalchemy.orm import Session
 
 from src.repositories.user_repository import UserRepository
+from src.repositories.session_repository import SessionRepository
 from src.schemas.user_schemas import UserIn, UserOut, UserOutLogin
-from src.utils.security import create_access_token, issue_new_refresh_token, rotate_refresh_tokens, REFRESH_TOKEN_EXPIRATION_DAYS
+from src.utils.security import create_access_token, issue_new_refresh_token, rotate_refresh_tokens, terminate_refresh_token, REFRESH_TOKEN_EXPIRATION_DAYS
+from src.exceptions.exceptions import BadRequestException, UnauthorizedException, NotFoundException, ServerErrorException
 
 class AuthService:
-    def __init__(self, user_repository: UserRepository = Depends()):
-        self.user_repository = user_repository
+    def __init__(self, db: Session):
+        self.user_repo = UserRepository(db)
+        self.session_repo = SessionRepository(db)
 
     def register(self, user: UserIn) -> UserOut:
-        existing_user = self.user_repository.get_by_username(user.username)
+        existing_user = self.user_repo.get_by_username(user.username)
         if existing_user:
-            raise HTTPException(status_code=400, detail="Username already taken")
+            raise BadRequestException("Username already taken")
 
         ph = PasswordHasher()
         user.password = ph.hash(user.password)
-        new_user = self.user_repository.create(user)
-        return UserOut.model_validate(new_user)
+        new_user = self.user_repo.create(user)
+        
+        self.user_repo.commit()
+
+        return UserOut(id=new_user.id, username=new_user.username)
     
     def login(self, user: UserIn, response: Response, user_agent: str | None) -> UserOutLogin:
-        existing_user = self.user_repository.get_by_username(user.username)
+        existing_user = self.user_repo.get_by_username(user.username)
         if not existing_user:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise NotFoundException("User not found")
         
         ph = PasswordHasher()
         try:
             ph.verify(existing_user.password, user.password)
         except exceptions.VerifyMismatchError:
-            raise HTTPException(status_code=401, detail="Incorrect password")
+            raise UnauthorizedException("Incorrect password")
         
         try:
             access_token = create_access_token(existing_user.id)
         except Exception:
-            raise HTTPException(status_code=500, detail="Failed to issue access token")
+            raise ServerErrorException("Failed to issue access token")
     
-        refresh_token = issue_new_refresh_token(existing_user.id, user_agent)
+        refresh_token = issue_new_refresh_token(existing_user.id, user_agent, self.session_repo)
         response.set_cookie(
             key="refresh-token", 
             value=refresh_token, 
@@ -43,18 +50,31 @@ class AuthService:
             httponly=True, secure=False, samesite="strict"
         )
         
-        return UserOutLogin(id=existing_user.id, username=existing_user.username, access_token=access_token)
+        return UserOutLogin(access_token=access_token, id=existing_user.id, username=existing_user.username)
     
-    def refresh_access(self, refresh_token: str, response: Response) -> str:
+    def logout(self, refresh_token: str, response: Response) -> None:
+        response.delete_cookie(
+            key="refresh-token",
+            httponly=True, secure=False, samesite="strict"
+        )
+
+        terminate_refresh_token(refresh_token, self.session_repo)
+    
+    def refresh_access(self, refresh_token: str, response: Response) -> UserOutLogin:
         response.delete_cookie(
             key="refresh-token", 
             httponly=True, secure=False, samesite="strict"
         )
 
-        data = rotate_refresh_tokens(refresh_token)
+        data = rotate_refresh_tokens(refresh_token, self.session_repo)
         new_refresh_token = data["new_token"]
         expiration_date = data["expiration_date"]
         user_id = data["user_id"]
+
+        username = ""
+        user = self.user_repo.get_by_id(user_id)
+        if user != None:
+            username = user.username
 
         response.set_cookie(
             key="refresh-token",
@@ -66,6 +86,6 @@ class AuthService:
         try:
             access_token = create_access_token(user_id)
         except Exception:
-            raise HTTPException(status_code=500, detail="Failed to issue access token")
+            raise ServerErrorException("Failed to issue access token")
         
-        return access_token
+        return UserOutLogin(access_token=access_token, id=user_id, username=username)

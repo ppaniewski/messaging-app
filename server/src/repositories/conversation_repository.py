@@ -11,25 +11,32 @@ from src.models.user_conversation import UserConversation
 from src.models.message import Message
 
 class ConversationRepository:
-    def __init__(self, db: Session = Depends(get_db)):
+    def __init__(self, db: Session):
         self.db = db
 
     def commit(self):
         self.db.commit()
 
-    def list_conversations(self, user_id: int) -> List[Conversation]:
+    def list_conversations(self, user_id: int, offset: int, limit: int | None = None) -> List[Conversation]:
+        if limit != None:
+            return (self.db.query(Conversation).join(UserConversation).join(User)
+                .options(selectinload(Conversation.users), selectinload(Conversation.user_conversations))
+                .where(User.id == user_id).order_by(Conversation.id)
+                .limit(limit).offset(offset).all())
+        
         return (self.db.query(Conversation).join(UserConversation).join(User)
-                .options(selectinload(Conversation.users))
-                .where(User.id == user_id).order_by(Conversation.id).all())
+                .options(selectinload(Conversation.users), selectinload(Conversation.user_conversations))
+                .where(User.id == user_id).order_by(Conversation.id)
+                .offset(offset).all())
     
     def get_conversation(self, conversation_id: int) -> Conversation | None:
-        return self.db.query(Conversation).where(Conversation.id == conversation_id).scalar()
+        return self.db.query(Conversation).where(Conversation.id == conversation_id).first()
 
     def get_conversation_by_users(self, user_ids: List[int]) -> Conversation | None:
         return (self.db.query(Conversation).join(UserConversation).join(User)
-                .where(User.id._in(user_ids), Conversation.is_group_chat == False)
+                .where(User.id.in_(user_ids), Conversation.is_group_chat == False)
                 .group_by(Conversation.id).having(func.count(distinct(User.id)) == len(user_ids))
-                .scalar())
+                .first())
     
     def list_messages_from_conversations(self, conversation_ids: List[int]) -> List[Message]:
         return (self.db.query(Message).where(Message.conversation_id.in_(conversation_ids))
@@ -42,18 +49,23 @@ class ConversationRepository:
     def create_conversation(self, user_ids: List[int], is_group_chat: bool = False) -> Conversation:
         conversation = Conversation(is_group_chat=is_group_chat)
         self.db.add(conversation)
+        self.db.flush()
         
-        for id in user_ids:
-            link = UserConversation(user_id=id, conversation_id=conversation.id)
+        for user_id in user_ids:
+            link = UserConversation(user_id=user_id)
             conversation.user_conversations.append(link)
         
         return conversation
     
+    def delete_conversation(self, conversation: Conversation):
+        self.db.delete(conversation)
+    
     def get_message(self, message_id: int) -> Message | None:
-        return self.db.query(Message).where(Message.id == message_id).scalar()
+        return self.db.query(Message).where(Message.id == message_id).first()
     
     def create_message(self, conversation_id: int, user_id: int, text: str) -> Message:
         message = Message(user_id=user_id, conversation_id=conversation_id, text=text)
         self.db.add(message)
+        self.db.flush()
 
         return message    

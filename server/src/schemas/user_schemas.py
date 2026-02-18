@@ -1,11 +1,17 @@
 from typing import List
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
-class UserIn(BaseModel):
-    username: str = Field(min_length=4, max_length=50)
+from .base_schemas import CamelModel
+
+class UserIn(CamelModel):
+    username: str = Field(
+        description="Username between 5 and 50 characters long",
+        min_length=5, 
+        max_length=50
+    )
     password: str = Field(
-        description="Password between 6 and 64 characters, must contain at least one character, one digit, and one special symbol", 
+        description="Password between 6 and 64 characters long, must contain at least one character, one digit, and one special symbol", 
         min_length=6, 
         max_length=64
     )
@@ -18,14 +24,15 @@ class UserIn(BaseModel):
             raise ValueError("Must contain a digit")
         if not any([not c.isalnum() for c in v]):
             raise ValueError("Must contain a symbol")
+        
+        return v
 
-class UserOut(BaseModel):
+class UserOut(CamelModel):
     id: int
     username: str
 
-    model_config = {
-        "from_attributes": True
-    }
+class UserOutConversation(UserOut):
+    is_unread: bool
 
 class UserOutLogin(UserOut):
     access_token: str

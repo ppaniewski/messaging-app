@@ -1,8 +1,14 @@
-class BadRequestException(Exception):
-    pass
+class HTTPError(Exception):
+    code = 500
 
-class NotFoundException(Exception):
-    pass
+class BadRequestException(HTTPError):
+    code = 400
 
-class ServerErrorException(Exception):
-    pass
+class UnauthorizedException(HTTPError):
+    code = 401
+
+class NotFoundException(HTTPError):
+    code = 404
+
+class ServerErrorException(HTTPError):
+    code = 500
