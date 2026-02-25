@@ -43,6 +43,14 @@ export async function sendMessage(
 
 export async function deleteMessage(messageId: number) {
     await ensureConnected()
+
+    try {
+        const response = await socket.timeout(TIMEOUT).emitWithAck("delete_message", messageId)
+        if (!response.ok) return
+    }
+    catch (err) {
+        return
+    }
 }
 
 export async function markConversationRead(
@@ -50,12 +58,9 @@ export async function markConversationRead(
     userId: number,
     setChats: React.Dispatch<React.SetStateAction<Conversation[]>>
 ) {
-    console.log("1")
     await ensureConnected()
-    console.log("2")
 
     try {
-        console.log("3")
         const response = await socket.timeout(TIMEOUT).emitWithAck("mark_conversation_read", chatId)
         if (!response.ok) return
 
@@ -84,8 +89,6 @@ export async function isTyping(
     try {
         const response = await socket.timeout(TIMEOUT).emitWithAck("is_typing", conversationId)
         if (!response.ok) return
-
-
     }
     catch (err) {
         return

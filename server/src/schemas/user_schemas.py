@@ -6,8 +6,8 @@ from .base_schemas import CamelModel
 
 class UserIn(CamelModel):
     username: str = Field(
-        description="Username between 5 and 50 characters long",
-        min_length=5, 
+        description="Username between 3 and 50 characters long",
+        min_length=3, 
         max_length=50
     )
     password: str = Field(

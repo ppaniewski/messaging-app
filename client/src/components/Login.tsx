@@ -97,7 +97,7 @@ const validUsername = (
         return false
     }
 
-    if (username.length < 5) {
+    if (username.length < 3) {
         setUsernameError("Username is too short")
         return false
     }

@@ -24,8 +24,7 @@ app.include_router(user_router.router)
 app.include_router(conversation_router.router)
 
 sio = socketio.AsyncServer(
-    async_mode="asgi", 
-    cors_allowed_origins=["http://localhost:5173"]
+    async_mode="asgi"
 )
 register_socketio_events(sio)
 

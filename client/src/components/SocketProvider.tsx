@@ -12,8 +12,6 @@ type Props = {
 }
 
 const SocketProvider = ({ children }: Props) => {
-    const [isConnected, setIsConnected] = useState(socket.connected)
-
     const [friends, setFriends] = useState<User[]>([])
     const [sentRequests, setSentRequests] = useState<User[]>([])
     const [receivedRequests, setReceivedRequests] = useState<User[]>([])
@@ -23,11 +21,11 @@ const SocketProvider = ({ children }: Props) => {
 
     useEffect(() => {
         function onConnect() {
-            setIsConnected(true)
+            // console.log("socket.io connected")
         }
 
         function onDisconnect() {
-            setIsConnected(false)
+            // console.log("socket.io disconnected")
         }
 
         const messageReceived = (data: any) => onMessageReceived(data, setChats)

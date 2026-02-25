@@ -11,7 +11,6 @@ const socket = io(URL, {
 export const ensureConnected = async () => {
     return new Promise<void>((resolve, reject) => {
         if (socket.connected) {
-            console.log("WE WERE ALREADY CONNECTED")
             resolve()
             return
         }

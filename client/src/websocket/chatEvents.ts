@@ -72,5 +72,5 @@ export function onConversationRead(
 }
 
 export function onUserIsTyping(data: any) {
-    
+    console.log(data)
 }

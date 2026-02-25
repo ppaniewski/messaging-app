@@ -20,16 +20,14 @@ def register_socketio_events(sio: socketio.AsyncServer) -> None:
         except HTTPError as e:
             raise ConnectionRefusedError(str(e))
         except Exception as e:
-            print(str(e))
             raise ConnectionRefusedError("Authentication failed")
 
         await sio.save_session(sid, {"user_id": user_id, "username": username})
         await sio.enter_room(sid, f"user_id:{user_id}")
-        print(f"{sid} connected (username: {username}; user_id: {user_id})")
 
     @sio.event
     async def disconnect(sid, reason):
-        print(f"{sid} disconnected for reason: {reason}")
+        pass
 
     @sio.event
     async def send_message(sid, text: str, recipient_id: int):
@@ -51,8 +49,6 @@ def register_socketio_events(sio: socketio.AsyncServer) -> None:
             "is_deleted": message.is_deleted,
             "created_at": message.created_at.isoformat()
         }
-
-        print(f"user_id:{user_id} is sending a message to recipient_id:{recipient_id}")
 
         await sio.emit("message_received", data, room=f"user_id:{recipient_id}")
         return success(data)

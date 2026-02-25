@@ -1,5 +1,5 @@
 import { Stack, Heading } from "@chakra-ui/react"
-import {  useOutletContext } from "react-router-dom"
+import { useOutletContext } from "react-router-dom"
 import type { DashboardOutletContext } from "../contexts/DashboardOutletContext"
 import ChatEntry from "./ChatEntry"
 import { useChats } from "../contexts/ChatsContext"
@@ -8,8 +8,13 @@ const ChatPanel = () => {
     const { chats } = useChats()
     const { selectedChatId, setSelectedChatId }: DashboardOutletContext = useOutletContext()
 
-    const chatList = chats.map((chat, index) => {
-        return <ChatEntry chat={chat} key={index} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} />
+    const chatsByDate = [...chats].sort((a, b) => {
+        const dateA = new Date(a.messages[0]?.createdAt ?? null)
+        const dateB = new Date(b.messages[0]?.createdAt ?? null)
+        return dateB.getTime() - dateA.getTime()
+    })
+    const chatList = chatsByDate.map((chat) => {
+        return <ChatEntry chat={chat} key={chat.id} selectedChatId={selectedChatId} setSelectedChatId={setSelectedChatId} />
     })
 
     return (

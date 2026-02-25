@@ -1,0 +1,20 @@
+services:
+  backend:
+    image: messager-backend
+    pull_policy: never
+    container_name: messager-backend
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    
+  frontend:
+    image: messager-frontend
+    pull_policy: never
+    container_name: messager-frontend
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      target: runner
+    ports: 
+      - 80:80
+    
