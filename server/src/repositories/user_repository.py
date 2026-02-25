@@ -28,10 +28,10 @@ class UserRepository:
     
     def list_matching_users(self, letters: str, offset: int, limit: int | None = None) -> List[User]:
         if limit != None:
-            return (self.db.query(User).where(User.username.startswith(letters)).
+            return (self.db.query(User).where(User.username.ilike(f"{letters}%")).
                     order_by(User.username.asc()).limit(limit).offset(offset).all())
         
-        return (self.db.query(User).where(User.username.startswith(letters)).
+        return (self.db.query(User).where(User.username.ilike(f"{letters}%")).
                 order_by(User.username.asc()).offset(offset).all())
 
     def create(self, user: UserIn) -> User:
